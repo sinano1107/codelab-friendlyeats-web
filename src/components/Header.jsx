@@ -11,7 +11,45 @@ import { useRouter } from "next/navigation";
 import { firebaseConfig } from "@/src/lib/firebase/config";
 
 function useUserSession(initialUser) {
-	return;
+  // InitialUserはサーバーコンポーネントを介してサーバーから取得されます
+  const [user, setUser] = useState(initialUser);
+  const router = useRouter();
+
+  // 認証状態をサーバーに送り返すService Workerを登録します
+  // Service Worker は npm run build-service-worker でビルドされます
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      const serializedFirebaseConfig = encodeURIComponent(
+        JSON.stringify(firebaseConfig)
+      );
+      const serviceWorkerUrl = `/auth-service-worker.js?firebaseConfig=${serializedFirebaseConfig}`;
+
+      navigator.serviceWorker
+        .register(serviceWorkerUrl)
+        .then((registration) => console.log("scope is: ", registration.scope));
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged((authUser) => {
+      setUser(authUser);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    onAuthStateChanged((authUser) => {
+      if (user == undefined) return;
+
+      // ユーザーが変更されたときに更新してテストを容易にする
+      if (user?.email !== authUser?.email) {
+        router.refresh();
+      }
+    });
+  }, [user]);
+
+  return user;
 }
 
 export default function Header({initialUser}) {
